@@ -1,19 +1,3 @@
-"""
-tracer.py
-----------
-Core Code Tracing Engine for AlgoTrace AI.
-
-Executes a user-submitted Python script under sys.settrace(), capturing the
-line number and variable state after every executed line, up to a hard step
-cap. Execution is sandboxed with a restricted builtins list and a wall-clock
-timeout so a malicious or infinite-looping script can't hang or damage the
-server.
-
-This is a "best effort" sandbox suitable for a hackathon / student project
-demo. It is NOT a substitute for real isolation (e.g. gVisor, Docker,
-Firecracker) if you were putting this in front of untrusted users at scale.
-"""
-
 import sys
 import threading
 import traceback
@@ -33,10 +17,7 @@ MAX_STEPS_DEFAULT = 50
 TIMEOUT_SECONDS_DEFAULT = 5
 MAX_REPR_LENGTH = 200
 
-# A conservative allow-list of builtins. Anything not listed here
-# (open, eval, exec, __import__, compile, input, exit, ...) is unavailable
-# to the traced script, which blocks file access, imports, and re-entrant
-# code execution.
+
 SAFE_BUILTINS = {
     "abs": abs, "all": all, "any": any, "bool": bool, "chr": chr,
     "dict": dict, "divmod": divmod, "enumerate": enumerate, "filter": filter,
@@ -69,7 +50,6 @@ def _snapshot_locals(frame):
     """Capture a JSON-safe dict of the local variables in a frame."""
     snapshot = {}
     for name, value in frame.f_locals.items():
-        # Skip dunder/internal names and module/function objects (noise, not state)
         if name.startswith("__") or callable(value):
             continue
         snapshot[name] = _safe_repr(value)
@@ -91,8 +71,6 @@ def trace_code(code: str, max_steps: int = MAX_STEPS_DEFAULT,
     state = {"step_count": 0, "error": None, "timed_out": False}
 
     def tracer(frame, event, arg):
-        # Only trace lines belonging to the executed script itself, not
-        # library internals that might get called incidentally.
         if frame.f_code.co_filename != "<algotrace_user_code>":
             return None
 
@@ -117,8 +95,8 @@ def trace_code(code: str, max_steps: int = MAX_STEPS_DEFAULT,
         try:
             exec(compiled, restricted_globals)
         except TraceLimitExceeded:
-            pass  # expected control-flow signal, not a real error
-        except Exception as exc:  # noqa: BLE001 - we want to report ANY user-code error
+            pass
+        except Exception as exc:
             state["error"] = f"{type(exc).__name__}: {exc}"
         finally:
             sys.settrace(None)
@@ -128,9 +106,6 @@ def trace_code(code: str, max_steps: int = MAX_STEPS_DEFAULT,
     worker.join(timeout_seconds)
 
     if worker.is_alive():
-        # Thread is still running (infinite loop with no line events counted yet,
-        # or stuck inside a single expensive line). We can't safely kill a thread
-        # in Python, so we detach it (daemon=True) and report a timeout.
         state["timed_out"] = True
         sys.settrace(None)
 
