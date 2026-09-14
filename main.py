@@ -1,16 +1,3 @@
-"""
-main.py
--------
-FastAPI app for the AlgoTrace AI Code Tracing Engine (Part 1 of the backend).
-
-Run locally:
-    pip install -r requirements.txt
-    uvicorn main:app --reload
-
-Then POST to http://127.0.0.1:8000/trace with JSON body:
-    {"code": "x = 1\\ny = 2\\nz = x + y\\nprint(z)"}
-"""
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -23,9 +10,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Enable CORS so the React frontend (running on a different origin) can call this API.
-# For the hackathon/demo, "*" is simplest; tighten to your deployed frontend's
-# exact origin before/at submission if you want it locked down.
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
