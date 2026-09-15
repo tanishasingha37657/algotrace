@@ -16,6 +16,8 @@ class TraceTimeout(Exception):
 MAX_STEPS_DEFAULT = 50
 TIMEOUT_SECONDS_DEFAULT = 5
 MAX_REPR_LENGTH = 200
+MAX_SNAPSHOT_DEPTH = 4
+MAX_SNAPSHOT_ITEMS = 50
 
 
 SAFE_BUILTINS = {
@@ -46,13 +48,42 @@ def _safe_repr(value):
     return r
 
 
+def _json_safe(value, depth=0):
+    """Return a bounded, JSON-compatible snapshot without losing simple values."""
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+
+    if depth >= MAX_SNAPSHOT_DEPTH:
+        return _safe_repr(value)
+
+    if isinstance(value, (list, tuple)):
+        return [
+            _json_safe(item, depth + 1)
+            for item in value[:MAX_SNAPSHOT_ITEMS]
+        ]
+
+    if isinstance(value, dict):
+        return {
+            str(key): _json_safe(item, depth + 1)
+            for key, item in list(value.items())[:MAX_SNAPSHOT_ITEMS]
+        }
+
+    if isinstance(value, (set, frozenset)):
+        return [
+            _json_safe(item, depth + 1)
+            for item in sorted(value, key=_safe_repr)[:MAX_SNAPSHOT_ITEMS]
+        ]
+
+    return _safe_repr(value)
+
+
 def _snapshot_locals(frame):
     """Capture a JSON-safe dict of the local variables in a frame."""
     snapshot = {}
     for name, value in frame.f_locals.items():
         if name.startswith("__") or callable(value):
             continue
-        snapshot[name] = _safe_repr(value)
+        snapshot[name] = _json_safe(value)
     return snapshot
 
 
